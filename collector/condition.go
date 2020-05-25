@@ -200,18 +200,6 @@ type CurrentCondition struct {
 		} `json:"Imperial"`
 	} `json:"Precip1hr"`
 	PrecipitationSummary struct {
-		Precipitation struct {
-			Metric struct {
-				Value    float64 `json:"Value"`
-				Unit     string  `json:"Unit"`
-				UnitType int     `json:"UnitType"`
-			} `json:"Metric"`
-			Imperial struct {
-				Value    float64 `json:"Value"`
-				Unit     string  `json:"Unit"`
-				UnitType int     `json:"UnitType"`
-			} `json:"Imperial"`
-		} `json:"Precipitation"`
 		PastHour struct {
 			Metric struct {
 				Value    float64 `json:"Value"`
