@@ -1,6 +1,11 @@
 package collector
 
 import (
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
+	"log"
+	"net/http"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -9,35 +14,112 @@ import (
 // Struct which contains pointers to all the
 // prometheus descriptor defined for this exporter
 type AccuweatherCollector struct {
-	fooMetric *prometheus.Desc
-	barMetric *prometheus.Desc
+	apiKey                   string
+	temperature              *prometheus.Desc
+	realFeelTemperature      *prometheus.Desc
+	apparentTemperature      *prometheus.Desc
+	humidity                 *prometheus.Desc
+	pressure                 *prometheus.Desc
+	windDirectionDegree      *prometheus.Desc
+	precipitationPastHour    *prometheus.Desc
+	precipitationPast3Hours  *prometheus.Desc
+	precipitationPast6Hours  *prometheus.Desc
+	precipitationPast12Hours *prometheus.Desc
+	precipitationPast24Hours *prometheus.Desc
+	hasPrecipitation         *prometheus.Desc
+	precipitationType        *prometheus.Desc
 }
 
-func NewAccuweatherCollector() *AccuweatherCollector {
+func NewAccuweatherCollector(apiKey string) *AccuweatherCollector {
 	return &AccuweatherCollector{
-		fooMetric: prometheus.NewDesc("accuweather_foo_metric",
-			"Shows weather a foo has occured in the cluster", nil, nil),
-		barMetric: prometheus.NewDesc("accuweather_bar_metric",
-			"Shows weather a bar has occurred in the cluster", nil, nil),
+		apiKey: apiKey,
+		temperature: prometheus.NewDesc("accuweather_temperature_value",
+			"Current temperature (rounded value). May be NULL.", nil, nil),
+		realFeelTemperature: prometheus.NewDesc("accuweather_realfeel_temperature_metric_value",
+				"Patented AccuWeather RealFeel Temperature value.", nil, nil),
+		apparentTemperature: prometheus.NewDesc("accuweather_apparent_temperature_metric_value",
+				"Perceived outdoor temperature caused by the combination of air temperature, relative humidity, and wind speed.", nil, nil),
+		humidity: prometheus.NewDesc("accuweather_humidity_value",
+			"Relative humidity. May be NULL.", nil, nil),
+		pressure: prometheus.NewDesc("accuweather_pressure_value",
+			"Atmospheric pressure.", nil, nil),
+		windDirectionDegree: prometheus.NewDesc("accuweather_wind_direction_degree_value",
+			"Wind direction in Azimuth degrees (e.g. 180 degrees is a wind coming from the south). May be NULL.", nil, nil),
+		precipitationPastHour: prometheus.NewDesc("accuweather_precipitation_past_hour_value",
+			"The amount of precipitation (liquid equivalent) that has fallen in the past hour.", nil, nil),
+		precipitationPast3Hours: prometheus.NewDesc("accuweather_precipitation_past_3_hours_value",
+			"The amount of precipitation (liquid equivalent) that has fallen in the past three hours.", nil, nil),
+		precipitationPast6Hours: prometheus.NewDesc("accuweather_precipitation_past_6_hours_value",
+			"The amount of precipitation (liquid equivalent) that has fallen in thE past six hours.", nil, nil),
+		precipitationPast12Hours: prometheus.NewDesc("accuweather_precipitation_past_12_hours_value",
+			"The amount of precipitation (liquid equivalent) that has fallen in the past twelve hours.", nil, nil),
+		precipitationPast24Hours: prometheus.NewDesc("accuweather_precipitation_past_24_hours_value",
+			"The amount of precipitation (liquid equivalent) that has fallen in the past twenty-four hours.", nil, nil),
 	}
 }
 
 // Each and every collector must implement the Describe function.
 // It writes all the descriptors to the prometheus desc channel
 func (collector *AccuweatherCollector) Describe(ch chan<- *prometheus.Desc) {
-	ch <- collector.fooMetric
-	ch <- collector.barMetric
+	ch <- collector.temperature
+	ch <- collector.realFeelTemperature
+	ch <- collector.apparentTemperature
+	ch <- collector.humidity
+	ch <- collector.pressure
+	ch <- collector.windDirectionDegree
+	ch <- collector.precipitationPastHour
+	ch <- collector.precipitationPast3Hours
+	ch <- collector.precipitationPast6Hours
+	ch <- collector.precipitationPast12Hours
+	ch <- collector.precipitationPast24Hours
 }
 
 // Collect implements the required collect function for all
 // Prometheus collector
 func (collector *AccuweatherCollector) Collect(ch chan<- prometheus.Metric) {
-	// Logic to determine proper metric value to return to
-	// prometheus. For each descriptor
-	var metricValue int64
-	metricValue = time.Now().Unix()
+	currentConditions := getMetrics(collector.apiKey)
 
 	// Write latest value for each metric in the prometheus metric channel
-	ch <- prometheus.MustNewConstMetric(collector.fooMetric, prometheus.GaugeValue, float64(metricValue))
-	ch <- prometheus.MustNewConstMetric(collector.barMetric, prometheus.GaugeValue, float64(metricValue))
+	for _, currentCondition := range *currentConditions {
+		ch <- prometheus.MustNewConstMetric(collector.temperature, prometheus.GaugeValue, float64(currentCondition.Temperature.Metric.Value))
+		ch <- prometheus.MustNewConstMetric(collector.realFeelTemperature, prometheus.GaugeValue, float64(currentCondition.RealFeelTemperature.Metric.Value))
+		ch <- prometheus.MustNewConstMetric(collector.apparentTemperature, prometheus.GaugeValue, float64(currentCondition.ApparentTemperature.Metric.Value))
+		ch <- prometheus.MustNewConstMetric(collector.humidity, prometheus.GaugeValue, float64(currentCondition.RelativeHumidity))
+		ch <- prometheus.MustNewConstMetric(collector.pressure, prometheus.GaugeValue, float64(currentCondition.Pressure.Metric.Value))
+		ch <- prometheus.MustNewConstMetric(collector.windDirectionDegree, prometheus.GaugeValue, float64(currentCondition.Wind.Direction.Degrees))
+		ch <- prometheus.MustNewConstMetric(collector.precipitationPastHour, prometheus.GaugeValue, float64(currentCondition.PrecipitationSummary.PastHour.Metric.Value))
+		ch <- prometheus.MustNewConstMetric(collector.precipitationPast3Hours, prometheus.GaugeValue, float64(currentCondition.PrecipitationSummary.Past3Hours.Metric.Value))
+		ch <- prometheus.MustNewConstMetric(collector.precipitationPast6Hours, prometheus.GaugeValue, float64(currentCondition.PrecipitationSummary.Past6Hours.Metric.Value))
+		ch <- prometheus.MustNewConstMetric(collector.precipitationPast12Hours, prometheus.GaugeValue, float64(currentCondition.PrecipitationSummary.Past12Hours.Metric.Value))
+		ch <- prometheus.MustNewConstMetric(collector.precipitationPast24Hours, prometheus.GaugeValue, float64(currentCondition.PrecipitationSummary.Past24Hours.Metric.Value))
+	}
+}
+
+func getMetrics(apiKey string) *CurrentConditions {
+	url := fmt.Sprintf("http://dataservice.accuweather.com/currentconditions/v1/214753?apikey=%s&language=it-it&details=true", apiKey)
+
+	awClient := http.Client{
+		Timeout: time.Second * 2,
+	}
+
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	res, err := awClient.Do(req)
+	defer res.Body.Close()
+
+	body, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	currentConditions := &CurrentConditions{}
+	err = json.Unmarshal(body, currentConditions)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return currentConditions
 }
