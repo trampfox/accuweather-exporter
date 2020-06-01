@@ -1,20 +1,17 @@
 package collector
 
 import (
-	"encoding/json"
-	"fmt"
-	"io/ioutil"
 	"log"
-	"net/http"
-	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/trampfox/accuweather-exporter/accuweather"
 )
 
 // Struct which contains pointers to all the
 // prometheus descriptor defined for this exporter
 type AccuweatherCollector struct {
-	apiKey                   string
+	client                   accuweather.AccuweatherClient
+	locationKey              string
 	temperature              *prometheus.Desc
 	realFeelTemperature      *prometheus.Desc
 	apparentTemperature      *prometheus.Desc
@@ -30,15 +27,18 @@ type AccuweatherCollector struct {
 	precipitationType        *prometheus.Desc
 }
 
-func NewAccuweatherCollector(apiKey string) *AccuweatherCollector {
+func NewAccuweatherCollector(apiKey string, locationKey string) *AccuweatherCollector {
+	client := accuweather.NewAccuweatherClient(apiKey)
+
 	return &AccuweatherCollector{
-		apiKey: apiKey,
+		client:      client,
+		locationKey: locationKey,
 		temperature: prometheus.NewDesc("accuweather_temperature_value",
 			"Current temperature (rounded value). May be NULL.", nil, nil),
 		realFeelTemperature: prometheus.NewDesc("accuweather_realfeel_temperature_metric_value",
-				"Patented AccuWeather RealFeel Temperature value.", nil, nil),
+			"Patented AccuWeather RealFeel Temperature value.", nil, nil),
 		apparentTemperature: prometheus.NewDesc("accuweather_apparent_temperature_metric_value",
-				"Perceived outdoor temperature caused by the combination of air temperature, relative humidity, and wind speed.", nil, nil),
+			"Perceived outdoor temperature caused by the combination of air temperature, relative humidity, and wind speed.", nil, nil),
 		humidity: prometheus.NewDesc("accuweather_humidity_value",
 			"Relative humidity. May be NULL.", nil, nil),
 		pressure: prometheus.NewDesc("accuweather_pressure_value",
@@ -77,7 +77,10 @@ func (collector *AccuweatherCollector) Describe(ch chan<- *prometheus.Desc) {
 // Collect implements the required collect function for all
 // Prometheus collector
 func (collector *AccuweatherCollector) Collect(ch chan<- prometheus.Metric) {
-	currentConditions := getMetrics(collector.apiKey)
+	currentConditions, err := collector.client.GetCurrentConditions(collector.locationKey)
+	if err != nil {
+		log.Println(err)
+	}
 
 	// Write latest value for each metric in the prometheus metric channel
 	for _, currentCondition := range *currentConditions {
@@ -93,33 +96,4 @@ func (collector *AccuweatherCollector) Collect(ch chan<- prometheus.Metric) {
 		ch <- prometheus.MustNewConstMetric(collector.precipitationPast12Hours, prometheus.GaugeValue, float64(currentCondition.PrecipitationSummary.Past12Hours.Metric.Value))
 		ch <- prometheus.MustNewConstMetric(collector.precipitationPast24Hours, prometheus.GaugeValue, float64(currentCondition.PrecipitationSummary.Past24Hours.Metric.Value))
 	}
-}
-
-func getMetrics(apiKey string) *CurrentConditions {
-	url := fmt.Sprintf("http://dataservice.accuweather.com/currentconditions/v1/214753?apikey=%s&language=it-it&details=true", apiKey)
-
-	awClient := http.Client{
-		Timeout: time.Second * 2,
-	}
-
-	req, err := http.NewRequest(http.MethodGet, url, nil)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	res, err := awClient.Do(req)
-	defer res.Body.Close()
-
-	body, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	currentConditions := &CurrentConditions{}
-	err = json.Unmarshal(body, currentConditions)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	return currentConditions
 }
