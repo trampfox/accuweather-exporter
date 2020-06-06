@@ -23,12 +23,22 @@ type AccuweatherCollector struct {
 	precipitationPast6Hours  *prometheus.Desc
 	precipitationPast12Hours *prometheus.Desc
 	precipitationPast24Hours *prometheus.Desc
-	hasPrecipitation         *prometheus.Desc
-	precipitationType        *prometheus.Desc
 }
 
-func NewAccuweatherCollector(apiKey string, locationKey string) *AccuweatherCollector {
+func NewAccuweatherCollector(apiKey string, locationKey string, location string) *AccuweatherCollector {
 	client := accuweather.NewAccuweatherClient(apiKey)
+
+	if location != "" {
+		location, err := client.GetLocation(location)
+		if err != nil {
+			log.Printf("An error occurred while retrieving city ID, the provided one or the default one will be used")
+			log.Printf("Error: %s", err)
+		} else {
+			log.Printf("Location retrieved from City Search API. Name: %s | Key: %s | Country: %s",
+				location.LocalizedName, location.Key, location.Country.LocalizedName)
+			locationKey = location.Key
+		}
+	}
 
 	return &AccuweatherCollector{
 		client:      client,
