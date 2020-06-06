@@ -13,14 +13,14 @@ Accuweather exporter uses the following APIs
 
 ## Configuration
 
-Accuweather exporter is setup to take run configuration from environment variables or CLI flags, and are listed in the table below.
+Accuweather exporter is setup to take run configuration from environment variables or CLI flags, which are listed in the table below.
 
 | Environment variable | Flag             | Description                                                  | Default |
 | :------------------- | ---------------- | ------------------------------------------------------------ | ------- |
 | AE_LISTEN_ADDRESS    | --listen-address | The address to listen on for HTTP requests                   | :9095   |
 | AE_API_KEY           | --api-key        | The API key for Accuweather API requests                     | -       |
-| AE_LOCATION          | --location       | The location for which you want to retrieve current conditions data (e.g. Turin, IT) | -       |
-| AE_LOCATION_KEY_ID   | --city-id        | The location key of the city for which you want to retrieve current conditions data | 214753  |
+| AE_LOCATION          | --location       | The location for which you want to retrieve current conditions data (e.g. `Turin, IT`) | -       |
+| AE_LOCATION_KEY      | --location-key   | The location key of the city for which you want to retrieve current conditions data | 214753  |
 
 ### Location configuration
 
@@ -28,9 +28,9 @@ The location can be specified in two ways:
 
 * providing a location key using the `location-key` flag or the `AE_LOCATION_KEY` environment variable
 
-* providing a location string, using the `location` or the `AE_LOCATION_KEY_ID` environment variable
+* providing a location string, using the `location` or the `AE_LOCATION` environment variable
 
-In the latter way the exporter calls the [City search API](https://developer.accuweather.com/accuweather-locations-api/apis/get/locations/v1/cities/search) and it retrieves the location key from the **first result**
+In the latter way the exporter calls the [City search API](https://developer.accuweather.com/accuweather-locations-api/apis/get/locations/v1/cities/search) and it retrieves the location key from the **first result**.
 
 ## Usage
 
