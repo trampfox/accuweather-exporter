@@ -28,6 +28,9 @@ type AccuweatherCollector struct {
 func NewAccuweatherCollector(apiKey string, locationKey string, location string) *AccuweatherCollector {
 	client := accuweather.NewAccuweatherClient(apiKey)
 
+	// Check if the location has been provided using the location flag. 
+	// If so, we need to call the City Search API in order to retrieve the
+	// location key that is required to call the Current Conditions API
 	if location != "" {
 		location, err := client.GetLocation(location)
 		if err != nil {

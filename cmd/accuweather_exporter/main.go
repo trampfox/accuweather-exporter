@@ -17,7 +17,6 @@ var (
 	apiKey      = app.Flag("api-key", "The API key for Accuweather API requests.").Envar("AE_API_KEY").Required().String()
 	locationKey = app.Flag("location-key", "The location key of the city for which you want to retrieve current conditions data").Envar("AE_LOCATION_KEY").Default("214753").String()
 	location    = app.Flag("location", "The location for which you want to retrieve current conditions data").HintOptions("Turin, IT").Envar("AE_LOCATION").String()
-	// TODO add language and unit (metric or imperial)
 )
 
 func Execute() {
